@@ -1,1 +1,0 @@
-AutoCrafter (Alpha): upgrade chests into auto-crafters with up to 3 slots, optional input/output chests, and per-world save data. Works with AutoSorter. Bugs are possible; PRs and UI help are welcome.
