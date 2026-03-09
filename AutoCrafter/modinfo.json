@@ -1,0 +1,12 @@
+{
+  "name": "AutoCrafter",
+  "author": "Flaze",
+  "description": "Automatically crafts items from a chest's own inventory. Upgrade any chest to an Auto Crafter with up to 3 crafting slots. Only learned recipes are available. Supports infinite or count-limited crafting.",
+  "version": "0.0.1a",
+  "license": "GNU AGPLv3",
+  "gameVersion": "1.0",
+  "requiredByAllPlayers": false,
+  "isModPermanent": true,
+  "excludedFiles": [],
+  "requiredMods": []
+}
