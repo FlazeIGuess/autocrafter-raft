@@ -4,9 +4,11 @@
   "description": "Automatically crafts items from a chest's own inventory. Upgrade any chest to an Auto Crafter with up to 3 crafting slots. Only learned recipes are available. Supports infinite or count-limited crafting.",
   "version": "0.0.1a",
   "license": "GNU AGPLv3",
+  "icon": "raft-crafter.png",
+  "banner": "raft-crafter-banner.png",
   "gameVersion": "1.0",
   "requiredByAllPlayers": true,
-  "updateUrl": "https://www.raftmodding.com/api/v1/mods/hitmarker/version.txt",
+  "updateUrl": "https://www.raftmodding.com/api/v1/mods/autocrafter/version.txt",
   "isModPermanent": true,
   "excludedFiles": [],
   "requiredMods": []
