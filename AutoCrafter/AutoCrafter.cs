@@ -21,6 +21,7 @@ namespace pp.RaftMods.AutoCrafter
         public static CStorageManager StorageManager { get; private set; }
         public static CDataManager   DataManager    { get; private set; }
         public static CModUI         ModUI          { get; private set; }
+        public static CAutoCrafterNetworkManager NetworkManager { get; private set; }
 
         // --- Private state ---
 
@@ -43,6 +44,7 @@ namespace pp.RaftMods.AutoCrafter
                 // Initialize managers (DataManager must come first, StorageManager needs it)
                 DataManager    = new CDataManager();
                 StorageManager = new CStorageManager(DataManager);
+                NetworkManager = new CAutoCrafterNetworkManager();
 
                 // Apply Harmony patches
                 mi_harmony = new Harmony("pp.RaftMods.AutoCrafter");
@@ -88,6 +90,7 @@ namespace pp.RaftMods.AutoCrafter
                 StorageManager = null;
                 DataManager    = null;
                 ModUI          = null;
+                NetworkManager = null;
 
                 Debug.Log("[AutoCrafter] Unloaded.");
             }

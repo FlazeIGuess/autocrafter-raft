@@ -17,6 +17,8 @@ namespace pp.RaftMods.AutoCrafter
         private static void Open(Storage_Small __instance, Network_Player player)
         {
             if (player == null || !player.IsLocalPlayer) return;
+            if (!Raft_Network.IsHost)
+                AutoCrafter.StorageManager?.GetBehaviour(__instance.ObjectIndex)?.RequestStateFromHost();
             AutoCrafter.ModUI?.OnStorageOpened(__instance.ObjectIndex);
         }
 

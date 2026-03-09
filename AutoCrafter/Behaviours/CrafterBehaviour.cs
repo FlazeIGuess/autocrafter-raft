@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Steamworks;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -39,6 +40,9 @@ namespace pp.RaftMods.AutoCrafter
             Debug.Log("[AutoCrafter] Initialize: ObjectIndex=" + ObjectIndex
                 + " UpgradeLevel=" + Data.UpgradeLevel);
             UpdateVisuals();
+
+            if (!Raft_Network.IsHost)
+                RequestStateFromHost();
         }
 
         // --- Craft logic (called by AutoCrafter.CraftLoop on host only) ---
@@ -156,20 +160,32 @@ namespace pp.RaftMods.AutoCrafter
         /// </summary>
         public CUpgradeResult Upgrade()
         {
+            if (!Raft_Network.IsHost)
+            {
+                AutoCrafter.NetworkManager?.SendToHost(
+                    new CAutoCrafterNetMessage(EAutoCrafterRequestType.REQUEST_UPGRADE, ObjectIndex));
+                return CUpgradeResult.Fail("Upgrade request sent to host.");
+            }
+
+            Network_Player localPlayer = ComponentManager<Network_Player>.Value;
+            return UpgradeForPlayer(localPlayer, true);
+        }
+
+        private CUpgradeResult UpgradeForPlayer(Network_Player actor, bool broadcastState)
+        {
             if (Data.UpgradeLevel >= CModConfig.MAX_LEVEL)
                 return CUpgradeResult.Fail("Already at maximum upgrade level!");
 
             int nextLevel = Data.UpgradeLevel + 1;
             CUpgradeCost[] costs = CModConfig.GetCostsForLevel(nextLevel);
-            Network_Player localPlayer = ComponentManager<Network_Player>.Value;
-            if (localPlayer == null)
+            if (actor == null)
                 return CUpgradeResult.Fail("Player not found.");
 
             // Collect all shortfalls in one pass
             var missing = new List<string>();
             foreach (var cost in costs)
             {
-                int have = localPlayer.Inventory.GetItemCount(cost.ItemName);
+                int have = actor.Inventory.GetItemCount(cost.ItemName);
                 if (have < cost.Amount)
                 {
                     string displayName = cost.ResolvedItem != null
@@ -184,13 +200,17 @@ namespace pp.RaftMods.AutoCrafter
 
             // All costs met - deduct
             foreach (var cost in costs)
-                localPlayer.Inventory.RemoveItem(cost.ItemName, cost.Amount);
+                actor.Inventory.RemoveItem(cost.ItemName, cost.Amount);
 
             Data.UpgradeLevel = nextLevel;
             Data.EnsureSlotCount(nextLevel);
             Data.SaveName = SaveAndLoad.CurrentGameFileName;
             mi_dataManager.SetData(Data);
             UpdateVisuals();
+
+            if (broadcastState)
+                BroadcastCurrentState();
+
             return CUpgradeResult.Ok();
         }
 
@@ -200,8 +220,21 @@ namespace pp.RaftMods.AutoCrafter
         /// </summary>
         public void Downgrade()
         {
+            if (!Raft_Network.IsHost)
+            {
+                AutoCrafter.NetworkManager?.SendToHost(
+                    new CAutoCrafterNetMessage(EAutoCrafterRequestType.REQUEST_DOWNGRADE, ObjectIndex));
+                return;
+            }
+
             Network_Player localPlayer = ComponentManager<Network_Player>.Value;
-            if (localPlayer == null) return;
+            DowngradeForPlayer(localPlayer, true);
+        }
+
+        private void DowngradeForPlayer(Network_Player actor, bool broadcastState)
+        {
+            if (actor == null)
+                return;
 
             // Return a fraction of all costs paid so far
             for (int level = 1; level <= Data.UpgradeLevel; level++)
@@ -212,7 +245,7 @@ namespace pp.RaftMods.AutoCrafter
                 {
                     int returnAmount = Mathf.FloorToInt(cost.Amount * CModConfig.ReturnMultiplier);
                     if (returnAmount > 0)
-                        localPlayer.Inventory.AddItem(cost.ItemName, returnAmount);
+                        actor.Inventory.AddItem(cost.ItemName, returnAmount);
                 }
             }
 
@@ -220,6 +253,9 @@ namespace pp.RaftMods.AutoCrafter
             Data.Slots.Clear();
             mi_dataManager.RemoveData(ObjectIndex);
             UpdateVisuals();
+
+            if (broadcastState)
+                BroadcastCurrentState();
         }
 
         // --- Slot configuration helpers (called by UI) ---
@@ -227,41 +263,101 @@ namespace pp.RaftMods.AutoCrafter
         /// <summary>Sets the recipe for a specific slot and saves.</summary>
         public void SetSlotRecipe(int slotIndex, Item_Base item)
         {
+            if (!Raft_Network.IsHost)
+            {
+                var msg = new CAutoCrafterNetMessage(EAutoCrafterRequestType.SET_SLOT_RECIPE, ObjectIndex)
+                {
+                    SlotIndex = slotIndex,
+                    IntValue = item != null ? item.UniqueIndex : -1
+                };
+                AutoCrafter.NetworkManager?.SendToHost(msg);
+                return;
+            }
+
             if (slotIndex < 0 || slotIndex >= Data.Slots.Count) return;
             Data.Slots[slotIndex].SetRecipe(item);
             mi_dataManager.SetData(Data);
+            BroadcastCurrentState();
         }
 
         /// <summary>Toggles infinite mode for a slot and saves.</summary>
         public void SetSlotInfinite(int slotIndex, bool infinite)
         {
+            if (!Raft_Network.IsHost)
+            {
+                var msg = new CAutoCrafterNetMessage(EAutoCrafterRequestType.SET_SLOT_INFINITE, ObjectIndex)
+                {
+                    SlotIndex = slotIndex,
+                    BoolValue = infinite
+                };
+                AutoCrafter.NetworkManager?.SendToHost(msg);
+                return;
+            }
+
             if (slotIndex < 0 || slotIndex >= Data.Slots.Count) return;
             Data.Slots[slotIndex].IsInfinite = infinite;
             mi_dataManager.SetData(Data);
+            BroadcastCurrentState();
         }
 
         /// <summary>Sets the remaining count for a slot and saves.</summary>
         public void SetSlotCount(int slotIndex, int count)
         {
+            if (!Raft_Network.IsHost)
+            {
+                var msg = new CAutoCrafterNetMessage(EAutoCrafterRequestType.SET_SLOT_COUNT, ObjectIndex)
+                {
+                    SlotIndex = slotIndex,
+                    IntValue = count
+                };
+                AutoCrafter.NetworkManager?.SendToHost(msg);
+                return;
+            }
+
             if (slotIndex < 0 || slotIndex >= Data.Slots.Count) return;
             Data.Slots[slotIndex].RemainingCount = Mathf.Max(0, count);
             mi_dataManager.SetData(Data);
+            BroadcastCurrentState();
         }
 
         /// <summary>Toggles the active state of a slot and saves.</summary>
         public void SetSlotActive(int slotIndex, bool active)
         {
+            if (!Raft_Network.IsHost)
+            {
+                var msg = new CAutoCrafterNetMessage(EAutoCrafterRequestType.SET_SLOT_ACTIVE, ObjectIndex)
+                {
+                    SlotIndex = slotIndex,
+                    BoolValue = active
+                };
+                AutoCrafter.NetworkManager?.SendToHost(msg);
+                return;
+            }
+
             if (slotIndex < 0 || slotIndex >= Data.Slots.Count) return;
             Data.Slots[slotIndex].IsActive = active;
             mi_dataManager.SetData(Data);
+            BroadcastCurrentState();
         }
 
         /// <summary>Assigns an output container for a specific slot and saves.</summary>
         public void SetSlotOutputContainer(int slotIndex, Storage_Small outputStorage)
         {
+            if (!Raft_Network.IsHost)
+            {
+                var msg = new CAutoCrafterNetMessage(EAutoCrafterRequestType.SET_SLOT_OUTPUT, ObjectIndex)
+                {
+                    SlotIndex = slotIndex,
+                    IntValue = outputStorage != null ? (int)outputStorage.ObjectIndex : -1
+                };
+                AutoCrafter.NetworkManager?.SendToHost(msg);
+                return;
+            }
+
             if (slotIndex < 0 || slotIndex >= Data.Slots.Count) return;
             Data.Slots[slotIndex].SetOutputContainer(outputStorage);
             mi_dataManager.SetData(Data);
+            BroadcastCurrentState();
             if (IsOpen)
                 AutoCrafter.ModUI?.RefreshSlotStatus(ObjectIndex);
         }
@@ -269,9 +365,21 @@ namespace pp.RaftMods.AutoCrafter
         /// <summary>Assigns an input container for a specific slot and saves.</summary>
         public void SetSlotInputContainer(int slotIndex, Storage_Small inputStorage)
         {
+            if (!Raft_Network.IsHost)
+            {
+                var msg = new CAutoCrafterNetMessage(EAutoCrafterRequestType.SET_SLOT_INPUT, ObjectIndex)
+                {
+                    SlotIndex = slotIndex,
+                    IntValue = inputStorage != null ? (int)inputStorage.ObjectIndex : -1
+                };
+                AutoCrafter.NetworkManager?.SendToHost(msg);
+                return;
+            }
+
             if (slotIndex < 0 || slotIndex >= Data.Slots.Count) return;
             Data.Slots[slotIndex].SetInputContainer(inputStorage);
             mi_dataManager.SetData(Data);
+            BroadcastCurrentState();
             if (IsOpen)
                 AutoCrafter.ModUI?.RefreshSlotStatus(ObjectIndex);
         }
@@ -433,6 +541,188 @@ namespace pp.RaftMods.AutoCrafter
             }
 
             return required;
+        }
+
+        /// <summary>
+        /// Requests authoritative state from host for this storage.
+        /// </summary>
+        public void RequestStateFromHost()
+        {
+            if (Raft_Network.IsHost)
+                return;
+
+            AutoCrafter.NetworkManager?.SendToHost(
+                new CAutoCrafterNetMessage(EAutoCrafterRequestType.REQUEST_STATE, ObjectIndex));
+        }
+
+        /// <summary>
+        /// Host-authoritative chest name update API for UI.
+        /// </summary>
+        public void SetChestName(string name)
+        {
+            if (!Raft_Network.IsHost)
+            {
+                AutoCrafter.NetworkManager?.SendToHost(
+                    new CAutoCrafterNetMessage(EAutoCrafterRequestType.SET_CHEST_NAME, ObjectIndex)
+                    {
+                        StringValue = name ?? string.Empty
+                    });
+                return;
+            }
+
+            AutoCrafter.DataManager?.SetChestName(ObjectIndex, name);
+            BroadcastCurrentState();
+        }
+
+        public void OnNetworkMessageReceived(CAutoCrafterNetMessage message, CSteamID remoteID)
+        {
+            if (message == null)
+                return;
+
+            if (Raft_Network.IsHost)
+            {
+                HandleHostRequest(message, remoteID);
+                return;
+            }
+
+            switch (message.Type)
+            {
+                case EAutoCrafterRequestType.RESPOND_STATE:
+                case EAutoCrafterRequestType.STATE_UPDATE:
+                    ApplyStateFromNetwork(message);
+                    break;
+            }
+        }
+
+        private void HandleHostRequest(CAutoCrafterNetMessage message, CSteamID remoteID)
+        {
+            switch (message.Type)
+            {
+                case EAutoCrafterRequestType.REQUEST_STATE:
+                    AutoCrafter.NetworkManager?.SendTo(
+                        BuildStateMessage(EAutoCrafterRequestType.RESPOND_STATE),
+                        remoteID);
+                    break;
+
+                case EAutoCrafterRequestType.REQUEST_UPGRADE:
+                    UpgradeForPlayer(GetRequestingPlayer(remoteID), true);
+                    break;
+
+                case EAutoCrafterRequestType.REQUEST_DOWNGRADE:
+                    DowngradeForPlayer(GetRequestingPlayer(remoteID), true);
+                    break;
+
+                case EAutoCrafterRequestType.SET_SLOT_RECIPE:
+                    SetSlotRecipe(message.SlotIndex, ItemManager.GetItemByIndex(message.IntValue));
+                    break;
+
+                case EAutoCrafterRequestType.SET_SLOT_ACTIVE:
+                    SetSlotActive(message.SlotIndex, message.BoolValue);
+                    break;
+
+                case EAutoCrafterRequestType.SET_SLOT_INFINITE:
+                    SetSlotInfinite(message.SlotIndex, message.BoolValue);
+                    break;
+
+                case EAutoCrafterRequestType.SET_SLOT_COUNT:
+                    SetSlotCount(message.SlotIndex, message.IntValue);
+                    break;
+
+                case EAutoCrafterRequestType.SET_SLOT_OUTPUT:
+                    SetSlotOutputContainer(message.SlotIndex, FindStorageByObjectIndex(message.IntValue));
+                    break;
+
+                case EAutoCrafterRequestType.SET_SLOT_INPUT:
+                    SetSlotInputContainer(message.SlotIndex, FindStorageByObjectIndex(message.IntValue));
+                    break;
+
+                case EAutoCrafterRequestType.SET_CHEST_NAME:
+                    AutoCrafter.DataManager?.SetChestName(ObjectIndex, message.StringValue);
+                    BroadcastCurrentState();
+                    break;
+            }
+        }
+
+        private Network_Player GetRequestingPlayer(CSteamID remoteID)
+        {
+            Raft_Network network = ComponentManager<Raft_Network>.Value;
+            if (network == null)
+                return ComponentManager<Network_Player>.Value;
+
+            Network_Player player = network.GetPlayerFromID(remoteID);
+            if (player != null)
+                return player;
+
+            if (remoteID == network.LocalSteamID)
+                return network.GetLocalPlayer();
+
+            return ComponentManager<Network_Player>.Value;
+        }
+
+        private void BroadcastCurrentState()
+        {
+            if (!Raft_Network.IsHost)
+                return;
+
+            AutoCrafter.NetworkManager?.Broadcast(BuildStateMessage(EAutoCrafterRequestType.STATE_UPDATE));
+        }
+
+        private CAutoCrafterNetMessage BuildStateMessage(EAutoCrafterRequestType type)
+        {
+            var snapshot = CloneDataForNetwork();
+            return new CAutoCrafterNetMessage(type, ObjectIndex)
+            {
+                Data = snapshot,
+                ChestName = AutoCrafter.DataManager != null
+                    ? AutoCrafter.DataManager.GetChestName(ObjectIndex)
+                    : string.Empty
+            };
+        }
+
+        private CCrafterData CloneDataForNetwork()
+        {
+            if (Data == null)
+                return null;
+
+            string json = JsonUtility.ToJson(Data);
+            return JsonUtility.FromJson<CCrafterData>(json);
+        }
+
+        private void ApplyStateFromNetwork(CAutoCrafterNetMessage message)
+        {
+            if (message.Data == null)
+            {
+                Data = new CCrafterData(ObjectIndex);
+            }
+            else
+            {
+                Data = message.Data;
+                Data.ObjectIndex = ObjectIndex;
+                Data.ResolveItems();
+            }
+
+            AutoCrafter.DataManager?.SetChestNameFromNetwork(ObjectIndex, message.ChestName);
+            UpdateVisuals();
+
+            if (IsOpen)
+            {
+                AutoCrafter.ModUI?.RefreshSlotStatus(ObjectIndex);
+            }
+        }
+
+        private static Storage_Small FindStorageByObjectIndex(int objectIndex)
+        {
+            if (objectIndex < 0)
+                return null;
+
+            uint target = (uint)objectIndex;
+            foreach (Storage_Small storage in StorageManager.allStorages)
+            {
+                if (storage != null && storage.ObjectIndex == target)
+                    return storage;
+            }
+
+            return null;
         }
 
         // --- Private helpers ---

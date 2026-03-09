@@ -224,6 +224,18 @@ namespace pp.RaftMods.AutoCrafter
             SaveChestNames();
         }
 
+        /// <summary>
+        /// Applies a chest name from network state without triggering disk writes.
+        /// </summary>
+        public void SetChestNameFromNetwork(uint objectIndex, string name)
+        {
+            name = name?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(name))
+                mi_chestNames.Remove(objectIndex);
+            else
+                mi_chestNames[objectIndex] = name;
+        }
+
         private void LoadChestNames()
         {
             mi_chestNames.Clear();

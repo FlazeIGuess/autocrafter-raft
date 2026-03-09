@@ -44,6 +44,10 @@
     <Compile Include="Data\CUpgradeResult.cs" />
     <Compile Include="Manager\CDataManager.cs" />
     <Compile Include="Manager\CStorageManager.cs" />
+    <Compile Include="Network\CAutoCrafterNetMessage.cs" />
+    <Compile Include="Network\CAutoCrafterNetworkManager.cs" />
+    <Compile Include="Network\EAutoCrafterRequestType.cs" />
+    <Compile Include="Patches\NetworkPatches.cs" />
     <Compile Include="Patches\StorageSmallPatches.cs" />
     <Compile Include="UI\CDraggablePanel.cs" />
     <Compile Include="UI\Bridge\AutoCrafterUIBridge.cs" />

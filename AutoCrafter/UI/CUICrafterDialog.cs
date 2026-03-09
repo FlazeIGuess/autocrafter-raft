@@ -143,6 +143,9 @@ namespace pp.RaftMods.AutoCrafter
         {
             if (mi_behaviour == null || mi_behaviour.ObjectIndex != objectIndex)
                 return;
+
+            // Sync the chest name buffer from DataManager in case another player renamed it.
+            mi_chestNameBuffer = AutoCrafter.DataManager?.GetChestName(objectIndex) ?? string.Empty;
         }
 
         private void OnDestroy()
@@ -243,7 +246,7 @@ namespace pp.RaftMods.AutoCrafter
             if (!string.Equals(newName, mi_chestNameBuffer, StringComparison.Ordinal))
             {
                 mi_chestNameBuffer = newName;
-                AutoCrafter.DataManager?.SetChestName(CurrentObjectIndex, mi_chestNameBuffer);
+                mi_behaviour?.SetChestName(mi_chestNameBuffer);
             }
             GUILayout.EndHorizontal();
             EndSection();
@@ -525,6 +528,14 @@ namespace pp.RaftMods.AutoCrafter
             if (mi_behaviour == null)
                 return;
 
+            if (!Raft_Network.IsHost)
+            {
+                mi_behaviour.Upgrade();
+                AutoCrafter.ModUI?.Toast?.Show("Upgrade request sent to host.", CRaftStyleHelper.ColAccent, 2.5f);
+                AudioFeedbackAdapter.PlayClick();
+                return;
+            }
+
             CUpgradeResult result = mi_behaviour.Upgrade();
             if (result.Success)
             {
@@ -544,6 +555,14 @@ namespace pp.RaftMods.AutoCrafter
         {
             if (mi_behaviour == null)
                 return;
+
+            if (!Raft_Network.IsHost)
+            {
+                mi_behaviour.Downgrade();
+                AutoCrafter.ModUI?.Toast?.Show("Downgrade request sent to host.", CRaftStyleHelper.ColAccent, 2.5f);
+                AudioFeedbackAdapter.PlayClick();
+                return;
+            }
 
             if (!mi_downgradeConfirmPending)
             {

@@ -47,6 +47,7 @@ namespace pp.RaftMods.AutoCrafter
             behaviour.Initialize(storage, data, mi_dataManager);
 
             mi_behaviours[id] = behaviour;
+            AutoCrafter.NetworkManager?.RegisterBehaviour(behaviour);
             return behaviour;
         }
 
@@ -57,6 +58,7 @@ namespace pp.RaftMods.AutoCrafter
         public void UnregisterStorage(uint objectIndex)
         {
             mi_behaviours.Remove(objectIndex);
+            AutoCrafter.NetworkManager?.UnregisterBehaviour(objectIndex);
         }
 
         /// <summary>Returns the behaviour for a given objectIndex, or null.</summary>
@@ -81,6 +83,7 @@ namespace pp.RaftMods.AutoCrafter
         public void Clear()
         {
             mi_behaviours.Clear();
+            AutoCrafter.NetworkManager?.Clear();
         }
     }
 }
