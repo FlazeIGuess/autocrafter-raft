@@ -67,9 +67,17 @@ Goal: automatically craft Aloe Vera from resources provided through linked conta
 
 ## Screenshots
 
-- Placeholder: `docs/screenshots/aloe-vera-overview.png`
-- Placeholder: `docs/screenshots/aloe-vera-input-output-setup.png`
-- Placeholder: `docs/screenshots/aloe-vera-running.png`
+Input Chest:
+
+![Input Chest](https://i.ibb.co/KcXGngWD/Screenshot-2026-03-09-225914.png)
+
+Output Chest:
+
+![Output Chest](https://i.ibb.co/3Y4N3vzX/Screenshot-2026-03-09-230015.png)
+
+Crafting Chest:
+
+![Crafting Chest](https://i.ibb.co/7J9xwnvR/Screenshot-2026-03-09-225955.png)
 
 ## UI Help Wanted
 
